@@ -9,9 +9,14 @@
 # RCLONE_MOUNT_#_OPTIONS
 
 ###ENVS###
-RCLONE_CONF_PATH="${RCLONE_CONF_PATH:-/etc/rclone/rclone.conf}"
+RCLONE_CONF_PATH="${RCLONE_CONF_PATH:-}"
 RCLONE_OPTIONS="${RCLONE_OPTIONS:-}"
 RCLONE_DEFAULT_OPTIONS="${RCLONE_DEFAULT_OPTIONS:---allow-other}"
+
+if [[ -n ${RCLONE_CONF_PATH} ]]; then
+    RCLONE_OPTIONS="--config '${RCLONE_CONF_PATH}' ${RCLONE_OPTIONS}"
+fi
+
 
 ###VARS###
 PREFIX="RCLONE"
@@ -79,7 +84,7 @@ echo "RCLONE: Mounting ${MOUNT_REMOTE} to ${MOUNT_LOCAL} with options (${OPTIONS
 
 trap '{ /bin/fusermount -u -z -q "${MOUNT_LOCAL}"; exit \$1; }' INT TERM KILL QUIT EXIT
 
-nice -n -10 /usr/local/bin/rclone "${RCLONE_OPTIONS}" --config "${RCLONE_CONF_PATH}" mount "${MOUNT_REMOTE}" "${MOUNT_LOCAL}" \${VERBOSE} ${OPTIONS} &
+nice -n -10 /usr/local/bin/rclone ${RCLONE_OPTIONS} mount ${OPTIONS} \${VERBOSE} "${MOUNT_REMOTE}" "${MOUNT_LOCAL}" &
 
 wait \$!
 
