@@ -19,10 +19,12 @@ SERVICES_DIR="/etc/service"
 
 ###CODE###
 #Don't continue if mounts are not setup
-[[ -z $(eval "echo \$${PREFIX}_MOUNT_0") ]] && exit 0
+[[ -z $(eval "echo \$${PREFIX}_MOUNT_0") ]] && echo "RCLONE: No mounts are setup. Exiting." && exit 0
 
 #If RCLONE config doesn't exist exit
-[[ ! -f $RCLONE_CONF_PATH ]] && echo "ERROR: Unable to find rclone.conf at ${RCLONE_CONF_PATH}" && exit 1
+command -v rclone >/dev/null 2>&1 || { echo "ERROR: Unable to find rclone." && exit 1; }
+
+DEFAULT_OPTIONS=$(eval "echo \$${PREFIX}_DEFAULT_OPTIONS")
 
 COUNT=0
 while [[ true  ]]; do
@@ -33,7 +35,6 @@ while [[ true  ]]; do
     MOUNT=$(eval "echo \$${PREFIX}_MOUNT_$COUNT")
     MOUNT_NAME="\$${PREFIX}_MOUNT_$COUNT"
     OPTIONS=$(eval "echo \$${PREFIX}_MOUNT_${COUNT}_OPTIONS")
-    DEFAULT_OPTIONS=$(eval "echo \$${PREFIX}_DEFAULT_OPTIONS")
 
     #Increment count here so continue cmds later on don't cause infinite loop
     ((COUNT++))

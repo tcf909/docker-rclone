@@ -23,5 +23,4 @@ fi;
 #
 # BELOW THIS LINE: RUN ONLY ON CONTAINER CREATION
 #
-
 echo "HISTCONTROL=ignoreboth" >>~/.bashrc
