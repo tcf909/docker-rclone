@@ -72,9 +72,13 @@ while [[ true  ]]; do
 
 if [[ ! -d ${MOUNT_LOCAL} ]]; then
 
-  fusermount -u -z -q ${MOUNT_LOCAL}
+  if [[ -e ${MOUNT_LOCAL} ]]; then
 
-  [[ -e ${MOUNT_LOCAL} ]] && echo "RCLONE ERROR: Something exists where there should be a directory." && exit 1
+    /bin/umount -l -f ${MOUNT_LOCAL} || { echo "RCLONE ERROR: Problem unmounting existing directory." && exit 1; }
+
+   [[ -e ${MOUNT_LOCAL} ]] && echo "RCLONE ERROR: Something exists where there should be a directory." && exit 1
+
+  fi
 
   mkdir -p ${MOUNT_LOCAL} || { echo "RCLONE ERROR: Unable to create directory" && exit 1; }
 
@@ -82,7 +86,7 @@ fi;
 
 echo "RCLONE: Mounting ${MOUNT_REMOTE} to ${MOUNT_LOCAL} with options (${OPTIONS})"
 
-trap '{ /bin/fusermount -u -z -q "${MOUNT_LOCAL}"; exit \$1; }' INT TERM KILL QUIT EXIT
+trap '{ /bin/umount -l -f "${MOUNT_LOCAL}"; exit \$1; }' INT TERM KILL QUIT EXIT
 
 nice -n -10 /usr/local/bin/rclone ${RCLONE_OPTIONS} mount ${OPTIONS} \${VERBOSE} "${MOUNT_REMOTE}" "${MOUNT_LOCAL}" &
 
