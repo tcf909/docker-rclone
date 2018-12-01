@@ -1,35 +1,20 @@
 #!/usr/bin/env bash
-[[ "${DEBUG,,}" == "true" ]] && set -x
+[[ "${DEBUG,,}" ]] && set -x
 
 #ENVS SUPPORTED:
-# RCLONE_CONF_PATH
-# RCLONE_OPTIONS
 # RCLONE_DEFAULT_OPTIONS
 # RCLONE_MOUNT_#
 # RCLONE_MOUNT_#_OPTIONS
 
 ###ENVS###
-RCLONE_CONF_PATH="${RCLONE_CONF_PATH:-}"
-RCLONE_OPTIONS="${RCLONE_OPTIONS:-}"
 RCLONE_DEFAULT_OPTIONS="${RCLONE_DEFAULT_OPTIONS:---allow-other}"
-
-if [[ -n ${RCLONE_CONF_PATH} ]]; then
-    RCLONE_OPTIONS="--config '${RCLONE_CONF_PATH}' ${RCLONE_OPTIONS}"
-fi
-
 
 ###VARS###
 PREFIX="RCLONE"
 SERVICES_DIR="/etc/service"
 
-###CODE###
 #Don't continue if mounts are not setup
-[[ -z $(eval "echo \$${PREFIX}_MOUNT_0") ]] && echo "RCLONE: No mounts are setup. Exiting." && exit 0
-
-#If RCLONE config doesn't exist exit
-command -v rclone >/dev/null 2>&1 || { echo "ERROR: Unable to find rclone." && exit 1; }
-
-DEFAULT_OPTIONS=$(eval "echo \$${PREFIX}_DEFAULT_OPTIONS")
+[[ -z $(eval "echo \$${PREFIX}_MOUNT_0") ]] && exit 0
 
 COUNT=0
 while [[ true  ]]; do
@@ -37,9 +22,10 @@ while [[ true  ]]; do
     #########################
     ## START STANDARD LOOP ##
     #########################
-    MOUNT=$(eval "echo \$${PREFIX}_MOUNT_$COUNT")
-    MOUNT_NAME="\$${PREFIX}_MOUNT_$COUNT"
+    MOUNT=$(eval "echo \$${PREFIX}_MOUNT_${COUNT}")
+    MOUNT_NAME="\$${PREFIX}_MOUNT_${COUNT}"
     OPTIONS=$(eval "echo \$${PREFIX}_MOUNT_${COUNT}_OPTIONS")
+    DEFAULT_OPTIONS=$(eval "echo \$${PREFIX}_DEFAULT_OPTIONS")
 
     #Increment count here so continue cmds later on don't cause infinite loop
     ((COUNT++))
@@ -52,7 +38,12 @@ while [[ true  ]]; do
 
     [[ -z "${MOUNT_LOCAL}" ]] && echo "Missing local path for ${MOUNT_NAME}. Skipping." && continue
 
-    [[ -z "$OPTIONS" ]] && OPTIONS="${DEFAULT_OPTIONS}"
+     RCLONE_REMOTE="${MOUNT_REMOTE%%:*}"
+     RCLONE_REMOTE_TYPE=$(eval "echo \$RCLONE_CONFIG_${RCLONE_REMOTE}_TYPE");
+
+    [[ -z "${RCLONE_REMOTE_TYPE}" ]] && echo "RCLONE_\$REMOTE_TYPE is not specified in environment. Skipping." && continue
+
+    { [[ -z "$OPTIONS" ]] && OPTIONS="${DEFAULT_OPTIONS}"; } || { [[ -n "${RCLONE_DEFAULT_OPTIONS}" ]] && OPTIONS="${RCLONE_DEFAULT_OPTIONS} ${OPTIONS}"; }
 
     SERVICE=${MOUNT_NAME:1}
     DIR=${SERVICES_DIR}/${SERVICE}
@@ -66,19 +57,13 @@ while [[ true  ]]; do
 
     [[ ! -e ${RUN} ]] && { cat << EOF > ${RUN}
 #!/bin/bash
-[[ "${DEBUG}" == "true" ]] && set -x && VERBOSE="-v"
-
-#export HOME=/config
+[[ "${DEBUG}" ]] && set -x && VERBOSE="-v"
 
 if [[ ! -d ${MOUNT_LOCAL} ]]; then
 
-  if [[ -e ${MOUNT_LOCAL} ]]; then
+  fusermount -u -z -q ${MOUNT_LOCAL}
 
-    /bin/umount -l -f ${MOUNT_LOCAL} || { echo "RCLONE ERROR: Problem unmounting existing directory." && exit 1; }
-
-   [[ -e ${MOUNT_LOCAL} ]] && echo "RCLONE ERROR: Something exists where there should be a directory." && exit 1
-
-  fi
+  [[ -e ${MOUNT_LOCAL} ]] && echo "RCLONE ERROR: Something exists where there should be a directory." && exit 1
 
   mkdir -p ${MOUNT_LOCAL} || { echo "RCLONE ERROR: Unable to create directory" && exit 1; }
 
@@ -86,11 +71,11 @@ fi;
 
 echo "RCLONE: Mounting ${MOUNT_REMOTE} to ${MOUNT_LOCAL} with options (${OPTIONS})"
 
-trap '{ /bin/umount -l -f "${MOUNT_LOCAL}"; exit \$1; }' INT TERM KILL QUIT EXIT
+#trap '{ /bin/fusermount -u -z -q "${MOUNT_LOCAL}"; exit \$1; }' INT TERM KILL QUIT EXIT
+#exec nice -n -10 /usr/local/bin/rclone mount "${MOUNT_REMOTE}" "${MOUNT_LOCAL}" \${VERBOSE} ${OPTIONS} &
+#wait \$!
 
-nice -n -10 /usr/local/bin/rclone ${RCLONE_OPTIONS} mount ${OPTIONS} \${VERBOSE} "${MOUNT_REMOTE}" "${MOUNT_LOCAL}" &
-
-wait \$!
+nice -n -10 /usr/local/bin/rclone mount "${MOUNT_REMOTE}" "${MOUNT_LOCAL}" \${VERBOSE} ${OPTIONS}
 
 EOF
     chmod +x ${RUN}; }
